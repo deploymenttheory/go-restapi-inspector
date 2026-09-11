@@ -10,9 +10,10 @@
 !.vscode/extensions.json
 *.code-workspace
 
-# Build and temp files
+# Build output and local scratch files
 /build/
 /tmp/
+/.tmp/
 *.log
 *.bak
 
@@ -27,6 +28,17 @@
 /pkg/
 coverage.out
 coverage.html
+
+# Local inspection runs, downloaded specifications, and recorded evidence
+/inspector-runs/
+/live-runs/
+.inspector-*
+
+# Browser report verification dependencies and generated artifacts
+/tests/report-browser/node_modules/
+/tests/report-browser/test-results/
+/tests/report-browser/playwright-report/
+/tests/report-browser/blob-report/
 
 # Python virtual environments
 scripts/python/venv/

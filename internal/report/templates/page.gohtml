@@ -1,0 +1,35 @@
+{{define "page"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Observed contract · {{.View.Current.ID}}</title>
+  <style>{{.CSS}}</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to report</a>
+<header class="masthead">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">{·}</span><div>REST API Inspector<small>OBSERVED CONTRACT REPORT</small></div></div>
+  <div class="actions"><button id="download" class="quiet">Download contract</button><button id="theme" class="quiet" aria-label="Switch colour theme">Theme: system</button><button id="print" class="quiet">Print</button></div>
+</header>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="eyebrow">EXPLORE THE EVIDENCE</div>
+    {{template "navigation" .}}
+    <div class="sidebar-note"><span class="offline-dot"></span> Offline snapshot<br><small>All evidence is embedded.<br>No API requests are made.</small></div>
+  </aside>
+  <main id="main" tabindex="-1">
+    <div class="heading"><div><div class="eyebrow" id="section-kicker">INSPECTION RESULTS</div><h1 id="page-title">What the API revealed</h1><p id="page-description">Recorded behaviour, tested boundaries, and the evidence behind each finding.</p></div><div id="run-state"></div></div>
+    <div class="run-line"><span id="run-target"></span><span id="run-date"></span><button class="link" id="snapshot">Snapshot details</button></div>
+    <noscript><p class="notice">JavaScript is required to explore this offline report. The companion report.json and observed OpenAPI file remain available.</p></noscript>
+    <div id="view" aria-live="polite"></div>
+    <footer>Observed within this run’s operations, values, oracle, and environment. Finite evidence does not establish a universal contract.</footer>
+  </main>
+</div>
+{{template "components" .}}
+<dialog id="detail" aria-labelledby="detail-title"><div class="dialog-heading"><div><small id="detail-kicker"></small><h2 id="detail-title"></h2></div><div class="actions"><button id="detail-back" class="quiet">Back</button><button id="detail-close" class="quiet" aria-label="Close details">Close ×</button></div></div><div id="detail-body"></div></dialog>
+<div id="toast" role="status"></div>
+<script id="report-data" type="application/octet-stream">{{.Data}}</script>
+<script>{{.JS}}</script>
+</body></html>{{end}}

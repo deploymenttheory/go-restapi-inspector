@@ -1,0 +1,13 @@
+spec: examples/lab/openapi.yaml
+base-url: http://127.0.0.1:8089
+operations: [createWidget]
+output: inspector-runs
+wait-between-requests: 0s
+validation-trials: 3
+interaction-order: 3
+auth:
+  type: none
+cleanup:
+  attempts: 3
+  backoff: 20ms
+  timeout: 30s

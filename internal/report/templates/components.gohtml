@@ -1,0 +1,23 @@
+{{define "navigation"}}<nav aria-label="Report sections">
+  <a href="#overview" data-view="overview">Overview<span>01</span></a>
+  <a href="#fields" data-view="fields">Field findings<span>02</span></a>
+  <a href="#experiments" data-view="experiments">Experiments<span>03</span></a>
+  <a href="#requests" data-view="requests">HTTP requests<span>04</span></a>
+  <a href="#changes" data-view="changes">Schema changes<span>05</span></a>
+  <a href="#dependencies" data-view="dependencies">Dependencies<span>06</span></a>
+  <a href="#resources" data-view="resources">Resource cleanup<span>07</span></a>
+  {{if .View.Comparison}}<a href="#comparison" data-view="comparison">Compare runs<span>08</span></a>{{end}}
+</nav>{{end}}
+
+{{define "components"}}
+{{template "card"}}{{template "badge"}}{{template "table"}}{{template "filters"}}{{template "code"}}{{template "evidence"}}{{template "schema"}}{{template "chart"}}{{template "dependency"}}
+{{end}}
+{{define "card"}}<template id="card-component"><section class="card"><div class="card-heading"><h2></h2><p class="muted"></p></div><div class="card-body"></div></section></template><template id="metric-component"><div class="metric"><span class="metric-label"></span><strong></strong><small></small></div></template>{{end}}
+{{define "badge"}}<template id="badge-component"><span class="badge"></span></template>{{end}}
+{{define "table"}}<template id="table-component"><div class="data-table"><div class="table-scroll"><table><caption class="sr-only"></caption><thead><tr></tr></thead><tbody></tbody></table></div><div class="pagination"><span class="table-count" role="status"></span><div class="actions"><button class="previous quiet" aria-label="Previous page">← Previous</button><button class="next quiet" aria-label="Next page">Next →</button></div></div></div></template>{{end}}
+{{define "filters"}}<template id="filters-component"><div class="filters"><label>Operation<select class="operation"><option value="">All operations</option></select></label><label>Outcome / status<select class="status"><option value="">All statuses</option></select></label><label class="search-label">Search<input type="search" placeholder="Filter these records…"></label></div></template>{{end}}
+{{define "code"}}<template id="code-component"><section class="code-block"><div class="code-heading"><h3></h3><button class="copy quiet">Copy</button></div><pre tabindex="0"><code></code></pre></section></template>{{end}}
+{{define "evidence"}}<template id="evidence-component"><div class="evidence"><div class="evidence-meta chips"></div><p class="evidence-reason muted"></p><div class="evidence-links actions"></div><div class="evidence-payloads two-columns"></div><div class="evidence-effects"></div></div></template>{{end}}
+{{define "schema"}}<template id="schema-component"><div class="schema-diff two-columns"></div></template>{{end}}
+{{define "chart"}}<template id="chart-component"><figure class="cost-chart"><figcaption></figcaption><svg viewBox="0 0 1000 44" role="img" preserveAspectRatio="none"></svg><div class="chart-legend"></div></figure></template>{{end}}
+{{define "dependency"}}<template id="dependency-component"><article class="dependency"><div class="dependency-gate"></div><div class="dependency-rule"></div><div class="dependency-evidence"></div></article></template>{{end}}
