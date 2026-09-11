@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/crillab/gophersat v1.4.0
-	github.com/go-viper/mapstructure/v2 v2.4.0
+	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/pb33f/libopenapi v0.38.7
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
