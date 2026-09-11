@@ -1,75 +1,89 @@
-# Template
+# go-restapi-inspector
 
-This repository serves as a **Default Template Repository** according official [GitHub Contributing Guidelines][ProjectSetup] for healthy contributions. It brings you clean default Templates for several areas:
+Discover the observed behavioural contract of a black-box REST API before using its OpenAPI description to generate an SDK. Requires **Go 1.27.0 or later**.
 
-- [Azure DevOps Pull Requests](.azuredevops/PULL_REQUEST_TEMPLATE.md) ([`.azuredevops\PULL_REQUEST_TEMPLATE.md`](`.azuredevops\PULL_REQUEST_TEMPLATE.md`))
-- [Azure Pipelines](.pipelines/pipeline.yml) ([`.pipelines/pipeline.yml`](`.pipelines/pipeline.yml`))
-- [GitHub Workflows](.github/workflows/)
-  - [Super Linter](.github/workflows/linter.yml) ([`.github/workflows/linter.yml`](`.github/workflows/linter.yml`))
-  - [Sample Workflows](.github/workflows/workflow.yml) ([`.github/workflows/workflow.yml`](`.github/workflows/workflow.yml`))
-- [GitHub Pull Requests](.github/PULL_REQUEST_TEMPLATE.md) ([`.github/PULL_REQUEST_TEMPLATE.md`](`.github/PULL_REQUEST_TEMPLATE.md`))
-- [GitHub Issues](.github/ISSUE_TEMPLATE/)
-  - [Feature Requests](.github/ISSUE_TEMPLATE/FEATURE_REQUEST.md) ([`.github/ISSUE_TEMPLATE/FEATURE_REQUEST.md`](`.github/ISSUE_TEMPLATE/FEATURE_REQUEST.md`))
-  - [Bug Reports](.github/ISSUE_TEMPLATE/BUG_REPORT.md) ([`.github/ISSUE_TEMPLATE/BUG_REPORT.md`](`.github/ISSUE_TEMPLATE/BUG_REPORT.md`))
-- [Codeowners](.github/CODEOWNERS) ([`.github/CODEOWNERS`](`.github/CODEOWNERS`)) _adjust usernames once cloned_
-- [Wiki and Documentation](docs/) ([`docs/`](`docs/`))
-- [gitignore](.gitignore) ([`.gitignore`](.gitignore))
-- [gitattributes](.gitattributes) ([`.gitattributes`](.gitattributes))
-- [Changelog](CHANGELOG.md) ([`CHANGELOG.md`](`CHANGELOG.md`))
-- [Code of Conduct](CODE_OF_CONDUCT.md) ([`CODE_OF_CONDUCT.md`](`CODE_OF_CONDUCT.md`))
-- [Contribution](CONTRIBUTING.md) ([`CONTRIBUTING.md`](`CONTRIBUTING.md`))
-- [License](LICENSE) ([`LICENSE`](`LICENSE`)) _adjust projectname once cloned_
-- [Readme](README.md) ([`README.md`](`README.md`))
-- [Security](SECURITY.md) ([`SECURITY.md`](`SECURITY.md`))
+The supplied spec grounds request generation. The inspector establishes a working baseline, changes fields and combinations of fields, distinguishes competing constraint models, repeats matched experiments, and exports OpenAPI 3.1 with evidence.
 
+## Try the local lab
 
-## Status
+```sh
+go build -o bin/restapi-inspector ./cmd/restapi-inspector
+go run ./examples/lab
+```
 
-[![Super Linter](<https://github.com/segraef/Template/actions/workflows/linter.yml/badge.svg>)](<https://github.com/segraef/Template/actions/workflows/linter.yml>)
+In another terminal:
 
-[![Sample Workflow](<https://github.com/segraef/Template/actions/workflows/workflow.yml/badge.svg>)](<https://github.com/segraef/Template/actions/workflows/workflow.yml>)
+```sh
+bin/restapi-inspector plan --config examples/lab/inspector.yaml
+bin/restapi-inspector inspect --config examples/lab/inspector.yaml
+```
 
-## Creating a repository from a template
+The lab supplies an inaccurate required-field list and response ID type. Its actual rules require a certificate in advanced mode, forbid it in simple mode, and require a password with a certificate. The inspector discovers these relationships and cleans up its widgets.
 
-You can [generate](https://github.com/segraef/Template/generate) a new repository with the same directory structure and files as an existing repository. More details can be found [here][CreateFromTemplate].
+Each run writes a private directory containing:
 
-## Reporting Issues and Feedback
+| Artifact | Purpose |
+| --- | --- |
+| `observed-contract-with-the-facts.openapi.yaml` | Operation-specific corrections and versioned `x-observed-behaviour` evidence |
+| `evidence.json` | Requests, outcomes, responses and rule evidence |
+| `report.json` | Rules, coverage, changes, request counts and remaining resources |
+| `journal.ndjson` | Append-only, hash-chained execution and resource journal |
+| `report.html` | Offline interactive overview, field findings, experiments, request accounting and evidence |
 
-### Issues and Bugs
+## Probe a third-party lab
 
-If you find any bugs, please file an issue in the [GitHub Issues][GitHubIssues] page. Please fill out the provided template with the appropriate information.
+```sh
+export LAB_API_TOKEN='your-token'
+bin/restapi-inspector inspect \
+  --spec vendor.openapi.yaml \
+  --base-url https://your-lab.example/api \
+  --operation createWidget \
+  --auth-type bearer --auth-token-env LAB_API_TOKEN \
+  --wait-between-requests 1s
+```
 
-If you are taking the time to mention a problem, even a seemingly minor one, it is greatly appreciated, and a totally valid contribution to this project. **Thank you!**
+`inspect` sends real requests, including writes and prerequisite creation. Use an account and environment where those changes are intended. An explicit base URL is required. `plan` resolves the spec and references without probing the target API.
 
-## Feedback
+Authentication supports bearer tokens, basic auth, header/query/cookie API keys, OAuth2 client credentials, executable providers, multiple profiles and OpenAPI security alternatives. Configuration precedence is **flags → environment → file → defaults**. Environment variables use `RESTAPI_INSPECTOR_`, for example `RESTAPI_INSPECTOR_BASE_URL`.
 
-If there is a feature you would like to see in here, please file an issue or feature request in the [GitHub Issues][GitHubIssues] page to provide direct feedback.
+See [configuration](docs/configuration.md) for seed values, producer bindings, application error oracles, polling and cleanup settings.
 
-## Contribution
+## Inspect and recover
 
-If you would like to become an active contributor to this repository or project, please follow the instructions provided in [`CONTRIBUTING.md`][Contributing].
+```sh
+bin/restapi-inspector explain 'POST /widgets' --run inspector-runs/RUN_ID
+bin/restapi-inspector export --run inspector-runs/RUN_ID
+bin/restapi-inspector resume --run inspector-runs/RUN_ID --config original-config.yaml
+bin/restapi-inspector cleanup --run inspector-runs/RUN_ID
+bin/restapi-inspector report --run inspector-runs/RUN_ID
+bin/restapi-inspector report --run inspector-runs/CURRENT --compare-run inspector-runs/BASELINE
+```
 
-## Learn More
+`export` and `explain` are offline. Resume reconciles recorded resources and starts fresh fixtures for incomplete operations. It never blindly replays a write whose outcome is unknown.
 
-* [GitHub Documentation][GitHubDocs]
-* [Azure DevOps Documentation][AzureDevOpsDocs]
-* [Microsoft Azure Documentation][MicrosoftAzureDocs]
+HTML reports are generated automatically after `inspect`, `resume`, `export`, and `cleanup`, including partial results. Open `report.html` directly in a browser. Use `--html-report=false` to disable automatic generation. The `report` command regenerates HTML offline without credentials, API requests, or changes to the journal or contract; comparisons write `comparison.html` in the current run directory. See [reporting](docs/reporting.md) for views, evidence links, and comparison limits.
 
-<!-- References -->
+## Interpret results
 
-<!-- Local -->
-[ProjectSetup]: <https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions>
-[CreateFromTemplate]: <https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/creating-a-repository-from-a-template>
-[GitHubDocs]: <https://docs.github.com/>
-[AzureDevOpsDocs]: <https://docs.microsoft.com/en-us/azure/devops/?view=azure-devops>
-[GitHubIssues]: <https://github.com/segraef/Template/issues>
-[Contributing]: CONTRIBUTING.md
+Supported rules include requiredness, observed optionality, required-with, conditional requirements, blocked combinations, cardinality groups, mixed input types, discovered numeric boundaries, declared formats/enums, and numeric/date relations. Create, PUT and PATCH retain separate schemas. Related operations can yield `fieldIsRequiredForCreateOnly` and `fieldIsRequiredForUpdateOnly` observations. Read-after-write evidence describes defaults, generated values, mutability, normalization, coercion, omission effects and acceptance without an observable change.
 
-<!-- External -->
-[Az]: <https://img.shields.io/powershellgallery/v/Az.svg?style=flat-square&label=Az>
-[AzGallery]: <https://www.powershellgallery.com/packages/Az/>
-[PowerShellCore]: <https://github.com/PowerShell/PowerShell/releases/latest>
+Corrections require reproducible contrasts: three fresh trials by default. Auth errors, rate limits, state conflicts and server errors remain inconclusive. No numeric confidence score is invented.
 
-<!-- Docs -->
-[MicrosoftAzureDocs]: <https://docs.microsoft.com/en-us/azure/>
-[PowerShellDocs]: <https://docs.microsoft.com/en-us/powershell/>
+`modelConverged`, `interactionComplete` and `inputComplete` are separate report fields. Exhaustive mode enumerates configured finite domains; it does not prove completeness over infinite inputs. Untested claims remain unverified. Known disagreements between request classifications and the exported schema are marked unresolved and make the exported report partial. Review these markers before SDK ingestion. Resume retains classified experiments and completed confirmations while using fresh fixtures for new writes.
+
+See [design and current boundaries](docs/design.md) and [research sources](docs/research.md).
+
+## Development
+
+```sh
+make verify   # formatting, race tests, vet and build
+make lint     # golangci-lint v2, built with Go 1.27+
+make vuln     # govulncheck
+cd tests/report-browser
+npm ci
+npm run install-browser
+cd ../..
+make report-browser  # offline Chromium interaction, rendering and security checks
+```
+
+Tests use local HTTP fixtures. The live test is opt-in: set `INSPECTOR_LIVE=1` and `INSPECTOR_LIVE_CONFIG` to an intended disposable lab configuration.
