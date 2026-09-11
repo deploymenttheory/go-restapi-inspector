@@ -65,6 +65,37 @@ func Load(dir string) (Run, config.Config, error) {
 			err = journal.Decode(e.Data, &report)
 			s.Report, s.hasReport = report, true
 			s.reportSequence = e.Sequence
+		case "inheritance":
+			var inherited struct {
+				Lineage                   model.Lineage
+				Observations, Experiments []model.Observation
+				Plans                     []model.ExperimentPlan
+				Coverage                  []model.Coverage
+				Rules                     []model.Rule
+				Effects                   []struct {
+					Experiment, BeforeEvidence, ReadEvidence string
+					Before, After                            any
+				}
+			}
+			err = journal.Decode(e.Data, &inherited)
+			s.Report.Baseline = &inherited.Lineage
+			s.Report.Coverage, s.Report.Rules = inherited.Coverage, inherited.Rules
+			for _, o := range inherited.Observations {
+				s.wire[o.ID] = o
+			}
+			for _, o := range inherited.Experiments {
+				s.logical[o.ID] = o
+				s.ends[o.ExperimentID] = struct{ Observation, Outcome, Error string }{o.ID, o.Outcome, ""}
+			}
+			for _, p := range inherited.Plans {
+				s.plans[p.ID] = p
+			}
+			for _, effect := range inherited.Effects {
+				s.effects[effect.Experiment] = struct {
+					Before, After                any
+					BeforeEvidence, ReadEvidence string
+				}{effect.Before, effect.After, effect.BeforeEvidence, effect.ReadEvidence}
+			}
 		case "intent":
 			pending = struct{ ID, Operation, Method, Phase string }{}
 			err = journal.Decode(e.Data, &pending)

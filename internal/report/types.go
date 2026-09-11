@@ -18,6 +18,8 @@ type View struct {
 	Comparison *Comparison `json:"comparison,omitempty"`
 }
 type Run struct {
+	SpecIdentity  *model.SpecIdentity `json:"specIdentity,omitempty"`
+	Baseline      *model.Lineage      `json:"baseline,omitempty"`
 	ID            string              `json:"id"`
 	Snapshot      string              `json:"snapshot"`
 	Target        string              `json:"target"`
@@ -127,24 +129,25 @@ type Request struct {
 	Status     int    `json:"status"`
 }
 type Evidence struct {
-	ID             string `json:"id"`
-	Operation      string `json:"operation"`
-	Phase          string `json:"phase"`
-	Outcome        string `json:"outcome"`
-	Status         int    `json:"status"`
-	Sent           bool   `json:"sent"`
-	Control        string `json:"control"`
-	Input          string `json:"input"`
-	Response       string `json:"response"`
-	Headers        string `json:"headers"`
-	Completion     string `json:"completion,omitempty"`
-	Reason         string `json:"reason"`
-	Started        string `json:"started"`
-	Duration       string `json:"duration"`
-	Before         string `json:"before,omitempty"`
-	After          string `json:"after,omitempty"`
-	BeforeEvidence string `json:"beforeEvidence,omitempty"`
-	AfterEvidence  string `json:"afterEvidence,omitempty"`
+	Origin         *model.EvidenceOrigin `json:"origin,omitempty"`
+	ID             string                `json:"id"`
+	Operation      string                `json:"operation"`
+	Phase          string                `json:"phase"`
+	Outcome        string                `json:"outcome"`
+	Status         int                   `json:"status"`
+	Sent           bool                  `json:"sent"`
+	Control        string                `json:"control"`
+	Input          string                `json:"input"`
+	Response       string                `json:"response"`
+	Headers        string                `json:"headers"`
+	Completion     string                `json:"completion,omitempty"`
+	Reason         string                `json:"reason"`
+	Started        string                `json:"started"`
+	Duration       string                `json:"duration"`
+	Before         string                `json:"before,omitempty"`
+	After          string                `json:"after,omitempty"`
+	BeforeEvidence string                `json:"beforeEvidence,omitempty"`
+	AfterEvidence  string                `json:"afterEvidence,omitempty"`
 }
 type Change struct {
 	Operation   string   `json:"operation"`

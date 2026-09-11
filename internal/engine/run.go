@@ -19,12 +19,14 @@ import (
 )
 
 type Snapshot struct {
-	documentModel *spec.Document
-	plan          *graph.Plan
-	Recovered     bool           `json:"-"`
-	Config        config.Config  `json:"config"`
-	Document      map[string]any `json:"document"`
-	Report        model.Report   `json:"report"`
+	DocumentFingerprint string                               `json:"documentFingerprint,omitempty"`
+	Fingerprints        map[string]spec.OperationFingerprint `json:"operationFingerprints,omitempty"`
+	documentModel       *spec.Document
+	plan                *graph.Plan
+	Recovered           bool           `json:"-"`
+	Config              config.Config  `json:"config"`
+	Document            map[string]any `json:"document"`
+	Report              model.Report   `json:"report"`
 }
 type Result struct {
 	HTMLReport   bool
@@ -35,6 +37,7 @@ type Result struct {
 	Redactor     *journal.Redactor
 }
 type Runner struct {
+	Fingerprints   map[string]spec.OperationFingerprint
 	Progress       map[string]*operationProgress
 	Effects        []Effect
 	cleanupTried   map[string]bool
@@ -58,6 +61,10 @@ func New(c config.Config, d *spec.Document, dir string) (*Runner, error) {
 }
 
 func newWithPlan(c config.Config, d *spec.Document, dir string, p *graph.Plan) (*Runner, error) {
+	fingerprints, err := d.Fingerprints()
+	if err != nil {
+		return nil, err
+	}
 	redactor := journal.NewRedactor(c.SensitiveFields)
 	j, err := journal.Open(dir, redactor)
 	if err != nil {
@@ -69,6 +76,9 @@ func newWithPlan(c config.Config, d *spec.Document, dir string, p *graph.Plan) (
 		return nil, err
 	}
 	r := &Runner{Config: c, Document: d, Plan: p, Journal: j, Client: client, Report: model.Report{Version: model.Version, RunID: filepath.Base(dir), BaseURL: c.BaseURL, SpecHash: d.Hash, Started: time.Now().UTC(), State: "running", Requests: map[string]int{}, Warnings: p.Warnings}}
+	r.Fingerprints = fingerprints
+	identity := d.Identity(c.SpecRelease)
+	r.Report.SpecIdentity = &identity
 	return r, nil
 }
 func Inspect(ctx context.Context, c config.Config, log func(string)) (*Result, error) {
@@ -79,17 +89,29 @@ func Inspect(ctx context.Context, c config.Config, log func(string)) (*Result, e
 	if err != nil {
 		return nil, err
 	}
+	prepared, err := PrepareIncremental(c, d)
+	if err != nil {
+		return nil, err
+	}
+	c = prepared.Config
 	dir := filepath.Join(c.Output, time.Now().UTC().Format("20060102T150405.000000000Z"))
-	r, err := New(c, d, dir)
+	r, err := newWithPlan(c, d, dir, prepared.Plan)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 	r.Log = log
-	if err = r.Journal.Append("run", Snapshot{Config: c, Document: d.Raw, Report: r.Report}); err != nil {
+	if err = r.Journal.Append("run", r.snapshot()); err != nil {
+		return nil, err
+	}
+	if err = prepared.inherit(r); err != nil {
 		return nil, err
 	}
 	return r.Run(ctx)
+}
+
+func (r *Runner) snapshot() Snapshot {
+	return Snapshot{Config: r.Config, Document: r.Document.Raw, Report: r.Report, Fingerprints: r.Fingerprints, DocumentFingerprint: spec.Fingerprint(r.Client.Redactor.Redact(r.Document.Raw))}
 }
 func (r *Runner) Close() error { r.Client.Close(); return r.Journal.Close() }
 func (r *Runner) log(s string) {
@@ -180,7 +202,7 @@ func (r *Runner) Run(ctx context.Context) (*Result, error) {
 	return &Result{HTMLReport: r.Config.ReportEnabled(), Dir: r.Journal.Dir, Document: r.Document, Report: r.Report, Observations: r.Observations, Redactor: r.Client.Redactor}, errors.Join(runErr, cleanupErr, persist)
 }
 func (r *Runner) selected(op model.Operation) bool {
-	if len(r.Config.Operations) == 0 {
+	if len(r.Config.Operations) == 0 && !r.Config.SelectionExplicit {
 		return true
 	}
 	for _, id := range r.Config.Operations {
@@ -310,6 +332,11 @@ func (r *Runner) experiment(ctx context.Context, op model.Operation, logical mod
 		purpose = phase
 	}
 	plan := model.ExperimentPlan{ID: contextID, Operation: op.Key, Phase: phase, Purpose: purpose, Input: logical, Baseline: baseline, Control: control, ConfirmationGroup: group}
+	plan.OperationIdentity = op.Identity()
+	plan.ObservationContext = r.observationSignature(op)
+	plan.CaseID = model.ID(plan.OperationIdentity, logical, plan.ObservationContext)
+	plan.SpecIdentity = r.Report.SpecIdentity
+	plan.Dependencies = spec.Keys(r.dependencyContext(op))
 	if baseline != nil {
 		plan.ChangedFields = changedFields(*baseline, logical, op)
 	}

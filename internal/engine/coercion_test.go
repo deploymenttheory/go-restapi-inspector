@@ -1,12 +1,15 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -258,6 +261,10 @@ func TestResumeReusesClassifiedExperimentsAndConfirmationPairs(t *testing.T) {
 	}
 	dir := first.Dir
 	r.Close()
+	prefix, err := os.ReadFile(filepath.Join(dir, "journal.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	clean()
 	c.MaxRequests = 2000
 	result, err := Resume(ctx, dir, &c, false, nil)
@@ -270,6 +277,10 @@ func TestResumeReusesClassifiedExperimentsAndConfirmationPairs(t *testing.T) {
 	events, err := journal.Read(dir)
 	if err != nil {
 		t.Fatal(err)
+	}
+	continued, err := os.ReadFile(filepath.Join(dir, "journal.ndjson"))
+	if err != nil || !bytes.HasPrefix(continued, prefix) {
+		t.Fatal("resume did not preserve the original journal bytes")
 	}
 	after := map[string]int{}
 	epochs := 0
@@ -304,12 +315,16 @@ func TestResumeReusesClassifiedExperimentsAndConfirmationPairs(t *testing.T) {
 }
 
 func TestRedactedExperimentsCannotBeReused(t *testing.T) {
-	o := model.Observation{Outcome: "accepted", Input: model.Input{HasBody: true, Body: map[string]any{"name": "[REDACTED]"}}}
+	o := model.Observation{Sent: true, Outcome: "accepted", Input: model.Input{HasBody: true, Body: map[string]any{"name": "[REDACTED]"}}}
 	if reusable(o) {
 		t.Fatal("redacted request was reusable")
 	}
 	o.Input.Body = map[string]any{"name": "known"}
 	if !reusable(o) {
 		t.Fatal("classified plain request was not reusable")
+	}
+	o.Sent = false
+	if reusable(o) {
+		t.Fatal("unsent request was reusable")
 	}
 }

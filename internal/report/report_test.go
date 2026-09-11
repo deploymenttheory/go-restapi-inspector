@@ -2,9 +2,12 @@ package report
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"time"
 
 	"github.com/deploymenttheory/go-restapi-inspector/internal/config"
+	"github.com/deploymenttheory/go-restapi-inspector/internal/engine"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/journal"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/model"
 )
@@ -300,6 +304,7 @@ func TestBrowserFixtures(t *testing.T) {
 	if dir == "" {
 		t.Skip("browser fixture output was not requested")
 	}
+	writeIncrementalFixture(t, dir)
 	baseline := t.TempDir()
 	current := t.TempDir()
 	r := fixture(t, baseline, true, 8)
@@ -333,5 +338,43 @@ func TestBrowserFixtures(t *testing.T) {
 		if err = journal.WriteFile(filepath.Join(dir, output.subdir), output.name, b); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func writeIncrementalFixture(t *testing.T, destination string) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))
+	defer server.Close()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spec.json")
+	if err := os.WriteFile(path, []byte(`{"openapi":"3.1.0","info":{"title":"Delta","version":"production"},"paths":{"/stable":{"get":{"responses":{"204":{"description":"OK"}}}}}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c := config.Defaults()
+	c.Spec = path
+	c.SpecRelease = "v1"
+	c.BaseURL = server.URL
+	c.Output = dir
+	c.Wait = 0
+	first, err := engine.Inspect(context.Background(), c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.BaselineRun = first.Dir
+	c.SpecRelease = "v2"
+	second, err := engine.Inspect(context.Background(), c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := Generate(second.Dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := journal.WriteFile(filepath.Join(destination, "incremental"), Filename, b); err != nil {
+		t.Fatal(err)
 	}
 }

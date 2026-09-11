@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/deploymenttheory/go-restapi-inspector/internal/engine"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/exporter"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/generate"
-	"github.com/deploymenttheory/go-restapi-inspector/internal/graph"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/journal"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/learn"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/model"
@@ -30,6 +30,9 @@ func New() *cobra.Command {
 	flags := root.PersistentFlags()
 	flags.String("config", "", "YAML, JSON or TOML configuration file")
 	flags.String("spec", "", "OpenAPI 3.0/3.1 file or URL")
+	flags.String("baseline-run", "", "Verified prior run to reuse with plan or inspect; preserves its selection scope")
+	flags.String("spec-release", "", "Release label recorded alongside the spec version and hashes")
+	flags.String("evidence-context", "", "Principal/tenant configuration revision; change to invalidate previous evidence")
 	flags.String("base-url", "", "Explicit target API base URL (use a disposable lab)")
 	flags.String("output", "inspector-runs", "Directory for run artifacts")
 	flags.Bool("html-report", true, "Generate an offline HTML report with contract artifacts")
@@ -82,7 +85,7 @@ func New() *cobra.Command {
 	reportCmd.Flags().String("compare-run", "", "Baseline run directory to compare against; writes comparison.html in --run")
 	root.AddCommand(reportCmd)
 	root.AddCommand(&cobra.Command{Use: "plan", Short: "Resolve operations and dependencies without probing the API", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		c, err := resolved(cmd, nil)
+		c, err := inspectionConfig(cmd)
 		if err != nil {
 			return err
 		}
@@ -93,10 +96,11 @@ func New() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		p, err := graph.Build(d, c)
+		incremental, err := engine.PrepareIncremental(c, d)
 		if err != nil {
 			return err
 		}
+		c, p := incremental.Config, incremental.Plan
 		var inventories []any
 		for _, key := range p.Order {
 			op, _ := p.Find(key)
@@ -108,10 +112,10 @@ func New() *cobra.Command {
 			}
 			inventories = append(inventories, map[string]any{"operation": op.Key, "fields": len(op.Fields), "candidates": len(rules), "finiteCombinations": generate.Cardinality(domains), "warnings": op.Warnings})
 		}
-		return write(cmd, map[string]any{"version": model.Version, "plan": p, "inventory": inventories, "warnings": []string{"Declared schemas guide probes; they are not treated as validation truth.", "Inspect performs real writes for create/update operations and their prerequisites."}})
+		return write(cmd, map[string]any{"version": model.Version, "specIdentity": d.Identity(c.SpecRelease), "baseline": incremental.Lineage, "plan": p, "inventory": inventories, "warnings": []string{"Declared schemas guide probes; they are not treated as validation truth.", "Inspect performs real writes for create/update operations and their prerequisites."}})
 	}})
 	root.AddCommand(&cobra.Command{Use: "inspect", Short: "Probe the API and export its observed contract", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		c, err := resolved(cmd, nil)
+		c, err := inspectionConfig(cmd)
 		if err != nil {
 			return err
 		}
@@ -330,5 +334,24 @@ func resolved(cmd *cobra.Command, base *config.Config) (config.Config, error) {
 	if err := dynamicConfig(&c, base, file); err != nil {
 		return c, err
 	}
+	_, envSpec := os.LookupEnv("RESTAPI_INSPECTOR_SPEC")
+	c.SpecExplicit = cmd.Flags().Changed("spec") || v.InConfig("spec") || envSpec
 	return c, nil
+}
+
+func inspectionConfig(cmd *cobra.Command) (config.Config, error) {
+	c, err := resolved(cmd, nil)
+	if err != nil || c.BaselineRun == "" {
+		return c, err
+	}
+	if !c.SpecExplicit {
+		return c, fmt.Errorf("incremental inspection requires an explicit --spec, environment value or config entry")
+	}
+	saved, err := engine.LoadConfig(c.BaselineRun)
+	if err != nil {
+		return c, err
+	}
+	// A new revision receives a fresh label; the old release must not leak in.
+	saved.SpecRelease = ""
+	return resolved(cmd, &saved)
 }

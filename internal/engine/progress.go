@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/deploymenttheory/go-restapi-inspector/internal/config"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/graph"
 	"github.com/deploymenttheory/go-restapi-inspector/internal/model"
+	"github.com/deploymenttheory/go-restapi-inspector/internal/spec"
 )
 
 type operationProgress struct {
@@ -43,7 +45,7 @@ func (r *Runner) explorationBudget(op model.Operation) error {
 // progressFor reuses classified logical inputs only when the experiment
 // configuration is unchanged. Every new write still receives fresh fixtures.
 func (r *Runner) progressFor(op model.Operation) (*operationProgress, error) {
-	signature := observationSignature(r.Config, r.Document.Hash, op.Key)
+	signature := r.observationSignature(op)
 	if r.Progress == nil {
 		r.Progress = map[string]*operationProgress{}
 	}
@@ -83,12 +85,152 @@ func observationSignature(c config.Config, hash, operation string) string {
 
 func (r *Runner) planSignature(operation string) string {
 	c := r.Config
-	return model.ID("acquisition-v2", observationSignature(c, r.Document.Hash, operation), c.Mode, c.Strategy, c.InteractionOrder, c.ValidationTrials, c.BoundarySteps, c.Domains, c.Rules)
+	op, _ := r.Plan.Find(operation)
+	return acquisitionSignature(c, r.observationSignature(op), op)
+}
+
+func acquisitionSignature(c config.Config, signature string, op model.Operation) string {
+	domains := map[string][]model.State{}
+	for _, f := range op.Fields {
+		if states, ok := c.Domains[f.ID]; ok {
+			domains[f.ID] = states
+		}
+	}
+	var rules []model.Rule
+	for _, rule := range c.Rules {
+		if rule.Operation == "" || rule.Operation == op.Key || rule.Operation == op.ID {
+			rule.Operation = op.Identity()
+			rule.Identify()
+			rules = append(rules, rule)
+		}
+	}
+	return model.ID("acquisition-v3", signature, c.Mode, c.Strategy, c.InteractionOrder, c.ValidationTrials, c.BoundarySteps, domains, rules)
+}
+
+// dependencyContext includes fixture producers, readback, polling and cleanup.
+// The visited set makes companion cycles deterministic without recursion loops.
+func (r *Runner) dependencyContext(op model.Operation) map[string]any {
+	out := map[string]any{}
+	var visit func(model.Operation)
+	visit = func(op model.Operation) {
+		id := op.Identity()
+		if _, ok := out[id]; ok {
+			return
+		}
+		out[id] = nil
+		hint := r.Config.Hint(op)
+		auth := r.Config.Auth
+		profiles := map[string]config.Auth{}
+		if hint.Auth != "" {
+			profiles[hint.Auth] = r.Config.AuthProfiles[hint.Auth]
+		} else {
+			for _, requirement := range spec.Slice(op.Raw["security"]) {
+				for scheme := range spec.Map(requirement) {
+					if name := r.Config.Security[scheme]; name != "" {
+						profiles[name] = r.Config.AuthProfiles[name]
+					}
+				}
+			}
+		}
+		// Refresh timing does not change which principal is being observed.
+		auth = authContext(auth)
+		principals := map[string]string{}
+		principal := func(a config.Auth) {
+			for _, name := range []string{a.ClientIDEnv, a.UsernameEnv} {
+				if name != "" {
+					principals[name] = os.Getenv(name)
+				}
+			}
+		}
+		principal(auth)
+		for name, a := range profiles {
+			a = authContext(a)
+			profiles[name] = a
+			principal(a)
+		}
+		var edges []any
+		for _, edge := range r.Plan.Bindings(op.Key) {
+			producer, ok := r.Plan.Find(edge.Producer)
+			if ok {
+				edges = append(edges, []any{producer.Identity(), edge.Field, edge.Pointer, edge.Source})
+				visit(producer)
+			}
+		}
+		var companions []string
+		for _, method := range []string{"GET", "DELETE"} {
+			key := r.Plan.Companion(op, method, r.Config)
+			if companion, ok := r.Plan.Find(key); ok {
+				companions = append(companions, companion.Identity())
+				visit(companion)
+			}
+		}
+		if hint.Poll != nil {
+			if poll, ok := r.Plan.Find(hint.Poll.Operation); ok {
+				companions = append(companions, poll.Identity())
+				visit(poll)
+			}
+		}
+		contextHint := model.Clone(hint)
+		for field, binding := range contextHint.Bindings {
+			if target, ok := r.Plan.Find(binding.Operation); ok {
+				binding.Operation = target.Identity()
+				contextHint.Bindings[field] = binding
+			}
+		}
+		if target, ok := r.Plan.Find(contextHint.Read); ok {
+			contextHint.Read = target.Identity()
+		}
+		if target, ok := r.Plan.Find(contextHint.Delete); ok {
+			contextHint.Delete = target.Identity()
+		}
+		if contextHint.Poll != nil {
+			if target, ok := r.Plan.Find(contextHint.Poll.Operation); ok {
+				contextHint.Poll.Operation = target.Identity()
+			}
+		}
+		out[id] = []any{r.Fingerprints[id].Full, contextHint, auth, profiles, principals, edges, companions}
+	}
+	visit(op)
+	return out
+}
+
+func authContext(a config.Auth) config.Auth {
+	if a.Type == "" || a.Type == "none" {
+		return config.Auth{}
+	}
+	a.TokenRefreshBuffer = 0
+	if a.Type == "oauth2-client-credentials" && a.ClientAuthMethod == "" {
+		a.ClientAuthMethod = "client_secret_basic"
+	}
+	if a.Type != "oauth2-client-credentials" {
+		a.ClientAuthMethod = ""
+	}
+	return a
+}
+
+func (r *Runner) observationSignature(op model.Operation) string {
+	c := r.Config
+	files := map[string]string{}
+	for _, path := range []string{c.TLS.CAFile, c.TLS.CertFile} {
+		if path != "" {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				files[path] = "unavailable"
+			} else {
+				files[path] = model.ID(data)
+			}
+		}
+	}
+	var sensitive []string
+	if len(c.SensitiveFields) > 0 {
+		sensitive = c.SensitiveFields
+	}
+	return "v2:" + model.ID(c.BaseURL, c.EvidenceContext, c.Oracle, c.TLS, files, sensitive, r.dependencyContext(op))
 }
 
 func reusable(o model.Observation) bool {
 	b, err := json.Marshal(o.Input)
-	return err == nil && !strings.Contains(string(b), "[REDACTED]") && (o.Outcome == "accepted" || o.Outcome == "input-rejected")
+	return err == nil && o.Sent && !strings.Contains(string(b), "[REDACTED]") && (o.Outcome == "accepted" || o.Outcome == "input-rejected")
 }
 
 // confirmPair counts complete, independent control/experiment pairs. A crash
