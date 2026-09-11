@@ -11,6 +11,12 @@ import (
 )
 
 type Config struct {
+	BaselineRun     string `mapstructure:"baseline-run" json:"baseline-run,omitempty"`
+	SpecRelease     string `mapstructure:"spec-release" json:"spec-release,omitempty"`
+	EvidenceContext string `mapstructure:"evidence-context" json:"evidence-context,omitempty"`
+	// SpecExplicit distinguishes a replacement from a saved, possibly offline URL.
+	SpecExplicit        bool                     `mapstructure:"-" json:"-"`
+	SelectionExplicit   bool                     `mapstructure:"selection-explicit" json:"selection-explicit,omitempty"`
 	HTMLReport          *bool                    `mapstructure:"html-report" json:"html-report,omitempty"`
 	Spec                string                   `mapstructure:"spec" json:"spec"`
 	BaseURL             string                   `mapstructure:"base-url" json:"base-url"`

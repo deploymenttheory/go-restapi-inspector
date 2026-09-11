@@ -30,6 +30,8 @@ The value matrix groups recorded values by request outcome. Its cells are observ
 
 ## Request accounting and provenance
 
+Incremental inspections show a baseline schedule in the overview, including spec changes, selected actions, reusable cases and completed trial pairs. Inherited evidence details identify the original run and spec. Snapshot details include canonical/source fingerprints and the pinned parent journal hash. HTTP totals and the latest-session chart count requests sent in the current run; inherited evidence is counted separately. The schedule describes the initial reuse decision, while coverage shows what execution completed. See [incremental inspection](incremental-inspection.md).
+
 Discovery cases come from recorded coverage. Confirmation requests count the `validation` phase, and controls count `control` plus `validation-control`. Total HTTP requests count dispatch journal events, including authentication, prerequisite creation, read-before, readback, polling and cleanup. These quantities describe different layers of the process and should not be added together as though they were independent test counts. The request-cost chart switches between cumulative traffic and the latest resumed session.
 
 New executions record an `experiment-plan` before setup, carry its identifier through HTTP dispatches and resource ownership, and append an `experiment-end` after cleanup. This preserves incomplete attempts as well as successful experiments. An interrupted resumed session with no new analysis checkpoint shows the earlier findings with a visible warning.

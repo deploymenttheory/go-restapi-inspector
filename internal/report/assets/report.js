@@ -120,6 +120,7 @@
       const n = clone("evidence"); parent.append(n);
       $(".evidence-meta", n).append(badge(e.sent ? e.outcome : "unsent"), badge(e.phase), badge(e.status ? "HTTP " + e.status : "No HTTP status"), operation(e.operation));
       $(".evidence-reason", n).textContent = [e.reason, e.started, "Elapsed: " + e.duration + " (may include authentication and pacing)"].filter(Boolean).join(" · ");
+      if (e.origin) $(".evidence-reason", n).append(el("p", "Inherited from run " + e.origin.runId + " · spec " + (e.origin.spec.release || e.origin.spec.version || e.origin.spec.canonical) + ". This request was sent in that run."));
       const links = $(".evidence-links", n);
       if (e.control) links.append(evidenceLink(e.control, r, "Matched control →"));
       const experiment = r.experiments.find(x => x.observation === id || x.requests.some(qid => r.requests.find(q => q.id === qid)?.evidence === id));
@@ -148,7 +149,8 @@
       const chips = el("div", null, "chips"); chips.append(badge(x.outcome), badge(x.phase), badge(x.provenance)); parent.append(chips, operation(x.operation), el("p", x.purpose));
       if (x.error) parent.append(notice(x.error, true));
       parent.append(el("p", "Changed fields: " + ((x.changed || []).join(", ") || "None recorded"), "muted"));
-      if (x.provenance !== "recorded") parent.append(notice("Legacy association uses recorded contexts and explicit resource bindings. Purpose and exact planning inputs were not recorded; the comparison uses the earliest accepted baseline."));
+      if (x.provenance === "inherited") parent.append(notice("This completed experiment was inherited from a compatible earlier revision. Its requests are excluded from this run's HTTP totals."));
+      else if (x.provenance !== "recorded") parent.append(notice("Legacy association uses recorded contexts and explicit resource bindings. Purpose and exact planning inputs were not recorded; the comparison uses the earliest accepted baseline."));
       const links = el("div", null, "actions");
       if (x.observation) links.append(evidenceLink(x.observation, r, "Main request →"));
       if (x.control) links.append(evidenceLink(x.control, r, "Matched control →"));
@@ -225,6 +227,11 @@
     metric(cards, "Unresolved schema changes", number(m.unresolved), "Corrections the exporter could not apply");
     metric(cards, "Resources cleaned", number(m.deleted) + " / " + number(m.resources), "Recorded resources with deletion confirmed");
     view.append(notice(run.state === "complete" ? "Complete for the selected operations and configured exploration scope. Unselected operations and untested values remain unverified." : "This snapshot is " + run.state + ". Its findings are usable evidence, but the coverage and cleanup gaps below still apply.", run.state !== "complete"));
+    if (run.baseline) {
+      const lineage = card("Incremental inspection", "Baseline run " + run.baseline.runId + " · " + number(run.baseline.inheritedObservations) + " inherited evidence records; HTTP totals count requests sent in this run.");
+      lineage.append(notice(run.baseline.assumption));
+      table(lineage, run.baseline.operations, [["Operation", x => operation(x.operation)], ["Spec change", x => x.change], ["Scheduled action", x => x.action], ["Reused cases", x => x.reusedCases], ["Reused trial pairs", x => x.reusedPairs], ["Reason", x => (x.reasons || []).join(" · ")]], { title: "Incremental schedule" });
+    }
     const ops = card("Determination by operation", "Model convergence, interaction coverage, and complete input enumeration are separate claims.");
     table(ops, run.operations.map(o => ({ ...o, operation: o.key })), [["Operation", o => button(o.key, () => detail("Operation coverage", o.key, p => { p.append(badge(o.state), el("p", o.coverage)); disclosures(p, "Recorded reasons", o.reasons); p.append(schema(o.before, o.after)); }))], ["Determination", o => badge(o.state)], ["Model converged", o => o.modelConverged ? "Yes" : "No"], ["Interactions complete", o => o.interactionComplete ? "Yes" : "No"], ["All inputs enumerated", o => o.inputComplete ? "Yes" : "No"]], { filters: false, title: "Operation determinations" });
     const chart = card("Where the requests went", "Discovery cases are only one part of execution. Controls, repetitions, fixtures, reads, cleanup, and authentication add HTTP requests.");
@@ -326,6 +333,8 @@
   $("#run-state").append(badge(run.state)); $("#run-target").textContent = run.target;
   $("#run-date").textContent = "Started " + run.started;
   $("#snapshot").addEventListener("click", () => detail("Snapshot details", run.id, p => {
+    if (run.specIdentity) p.append(code("Specification identity", JSON.stringify(run.specIdentity, null, 2)));
+    if (run.baseline) p.append(code("Baseline identity", JSON.stringify({ runId: run.baseline.runId, journalHash: run.baseline.journalHash, spec: run.baseline.spec }, null, 2)));
     table(p, [["Run", run.id], ["Journal snapshot hash", run.snapshot], ["Source specification hash", run.specHash], ["Target", run.target], ["Started", run.started], ["Latest session", run.latestSession], ["Finished", run.finished], ["View format", data.version]].map(([name, value]) => ({ name, value })), [["Property", x => x.name], ["Recorded value", x => el("span", x.value, "mono")]], { filters: false, title: "Snapshot metadata" });
   }));
   let theme = "system";

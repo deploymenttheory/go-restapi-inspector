@@ -57,11 +57,24 @@ func Save(dir string, d *spec.Document, report *model.Report, observations []mod
 }
 
 func Build(d *spec.Document, report model.Report, observations []model.Observation) (map[string]any, []model.Change, error) {
+	applicable := make([]model.Observation, 0, len(observations))
+	for _, observation := range observations {
+		if !observation.EvidenceOnly {
+			applicable = append(applicable, observation)
+		}
+	}
+	observations = applicable
 	raw := model.Clone(d.Raw)
 	normalizeDocument(raw)
 	raw["openapi"] = "3.1.1"
 	raw["jsonSchemaDialect"] = "https://spec.openapis.org/oas/3.1/dialect/base"
 	raw["x-observed-behaviour"] = map[string]any{"version": model.Version, "runId": report.RunID, "sourceSpecHash": report.SpecHash, "baseUrl": report.BaseURL, "state": report.State, "coverage": report.Coverage, "interpretation": "Supported rules are scoped to recorded operations, auth, state and finite inputs. Original claims without corroborating evidence remain unverified.", "evidence": "evidence.json"}
+	if report.SpecIdentity != nil {
+		spec.Map(raw["x-observed-behaviour"])["specIdentity"] = report.SpecIdentity
+	}
+	if report.Baseline != nil {
+		spec.Map(raw["x-observed-behaviour"])["baseline"] = report.Baseline
+	}
 	if report.HTMLReport != "" {
 		spec.Map(raw["x-observed-behaviour"])["report"] = report.HTMLReport
 	}

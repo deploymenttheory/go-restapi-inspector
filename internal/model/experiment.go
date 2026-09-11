@@ -5,15 +5,20 @@ import "context"
 // ExperimentPlan records the question and logical input before fixture creation.
 // Request identifiers remain separate from the experiment that owns them.
 type ExperimentPlan struct {
-	ID                string   `json:"id"`
-	Operation         string   `json:"operation"`
-	Phase             string   `json:"phase"`
-	Purpose           string   `json:"purpose"`
-	Input             Input    `json:"input"`
-	Baseline          *Input   `json:"baseline,omitempty"`
-	ChangedFields     []string `json:"changedFields,omitempty"`
-	Control           string   `json:"control,omitempty"`
-	ConfirmationGroup string   `json:"confirmationGroup,omitempty"`
+	CaseID             string        `json:"caseId,omitempty"`
+	OperationIdentity  string        `json:"operationIdentity,omitempty"`
+	ObservationContext string        `json:"observationContext,omitempty"`
+	Dependencies       []string      `json:"dependencies,omitempty"`
+	SpecIdentity       *SpecIdentity `json:"specIdentity,omitempty"`
+	ID                 string        `json:"id"`
+	Operation          string        `json:"operation"`
+	Phase              string        `json:"phase"`
+	Purpose            string        `json:"purpose"`
+	Input              Input         `json:"input"`
+	Baseline           *Input        `json:"baseline,omitempty"`
+	ChangedFields      []string      `json:"changedFields,omitempty"`
+	Control            string        `json:"control,omitempty"`
+	ConfirmationGroup  string        `json:"confirmationGroup,omitempty"`
 }
 
 type traceKey struct{}

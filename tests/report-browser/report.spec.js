@@ -10,6 +10,24 @@ test.beforeEach(async ({ page }) => {
   await page.route(/^https?:/, route => { throw new Error("Unexpected network request: " + route.request().url()); });
 });
 
+test("explains inherited evidence without counting old requests as new traffic", async ({ page }) => {
+  await page.goto(fixture("incremental/report.html"));
+  await expect(page.getByRole("heading", { name: "Incremental inspection", exact: true })).toBeVisible();
+  await expect(page.locator(".metric").filter({ hasText: "Total HTTP requests" }).locator("strong")).toHaveText("0");
+  await expect(page.getByText("1 inherited evidence records", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Snapshot details", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText('"release": "v2"');
+  await expect(page.getByRole("dialog")).toContainText('"release": "v1"');
+  await page.keyboard.press("Escape");
+  await page.goto(fixture("incremental/report.html") + "#experiments");
+  await page.locator("tbody button").first().click();
+  await expect(page.getByRole("dialog")).toContainText("inherited from a compatible earlier revision");
+  await page.getByRole("button", { name: "Main request →", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Inherited from run");
+  await expect(page.getByRole("dialog")).toContainText("spec v1");
+  await page.screenshot({ path: "test-results/inherited-evidence.png", fullPage: true });
+});
+
 test("opens offline, accounts for traffic, and changes theme", async ({ page }) => {
   await page.goto(fixture());
   await expect(page.getByRole("heading", { name: "What the API revealed" })).toBeVisible();

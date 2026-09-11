@@ -61,6 +61,15 @@ bin/restapi-inspector report --run inspector-runs/CURRENT --compare-run inspecto
 
 `export` and `explain` are offline. Resume reconciles recorded resources and starts fresh fixtures for incomplete operations. It never blindly replays a write whose outcome is unknown.
 
+Resume validates an explicitly supplied spec against the saved revision before changing evidence or contacting the API. Without a replacement spec it uses the verified saved document. For a new revision, preview and run the delta:
+
+```sh
+bin/restapi-inspector plan --baseline-run inspector-runs/RUN_ID --spec next.openapi.json --spec-release 11.31.1
+bin/restapi-inspector inspect --baseline-run inspector-runs/RUN_ID --spec next.openapi.json --spec-release 11.31.1
+```
+
+The linked run preserves the baseline's operation selection and reuses compatible completed evidence. It finishes incomplete operations and inspects new, uncovered, changed, or dependency-affected operations. Request, response, description, and security changes trigger conservative operation revalidation; unchanged operations retain their deduplicated probes and completed confirmation pairs. See [incremental inspection](docs/incremental-inspection.md) for identity gates, provenance, context assumptions and reproducible Jamf validation.
+
 HTML reports are generated automatically after `inspect`, `resume`, `export`, and `cleanup`, including partial results. Open `report.html` directly in a browser. Use `--html-report=false` to disable automatic generation. The `report` command regenerates HTML offline without credentials, API requests, or changes to the journal or contract; comparisons write `comparison.html` in the current run directory. See [reporting](docs/reporting.md) for views, evidence links, and comparison limits.
 
 ## Interpret results

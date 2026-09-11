@@ -39,6 +39,8 @@ With a request cap, exploration reserves an estimated confirmation allowance, up
 
 `resume` checks a fresh baseline and reuses classified logical experiments and completed confirmation pairs. New writes always use fresh fixtures. Increase `max-requests` above the cumulative recorded count to continue. Budgets and discovery settings can change; auth, oracles, hints and other observation context must remain consistent. Redacted requests are never replayed as original values. The supplied config should retain environment references for credentials and sensitive seed values.
 
+`baseline-run` enables incremental `plan` and `inspect` against another explicitly supplied spec. `spec-release` records a readable release label alongside the declared version and content hashes. `evidence-context` identifies the account/tenant configuration revision used for reuse assumptions. See [resume and incremental inspection](incremental-inspection.md) for validation gates, preserved selection scope and evidence lineage.
+
 ## Authentication
 
 Credentials use environment-variable references, rather than literal CLI values.

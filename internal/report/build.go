@@ -20,6 +20,7 @@ func build(s recording, observed map[string]any) Run {
 	if observed != nil {
 		v.Contract = pretty(observed)
 	}
+	v.SpecIdentity, v.Baseline = r.SpecIdentity, r.Baseline
 	v.domains = model.ID(domains)
 	for _, item := range spec.Map(s.Document["paths"]) {
 		for _, method := range []string{"get", "post", "put", "patch", "delete", "head", "options", "trace"} {
@@ -54,6 +55,7 @@ func build(s recording, observed map[string]any) Run {
 			e.Outcome = completed.Outcome
 			e.Reason = completed.Reason
 		}
+		e.Origin = o.Origin
 		if effect, ok := s.effects[id]; ok {
 			e.Before = pretty(effect.Before)
 			e.After = pretty(effect.After)
@@ -217,6 +219,10 @@ func buildExperiments(v *Run, s recording) {
 			experiments[xid] = x
 		}
 		x.Observation, x.Outcome = id, o.Outcome
+		if o.Origin != nil {
+			x.Provenance = "inherited"
+			x.Error = ""
+		}
 		if !o.Sent {
 			x.Outcome = "unsent"
 		}

@@ -50,6 +50,10 @@ type Operation struct {
 	Warnings     []string       `json:"warnings,omitempty"`
 }
 
+// Identity remains stable when another request media type is added or an
+// operationId is renamed. Key is retained as the human-facing selector.
+func (o Operation) Identity() string { return o.Method + " " + o.Path + " [" + o.MediaType + "]" }
+
 func (o Operation) Field(id string) (Field, bool) {
 	for _, f := range o.Fields {
 		if f.ID == id {
@@ -318,6 +322,7 @@ func (p Predicate) Fields() []string {
 }
 
 type Rule struct {
+	Origin    *EvidenceOrigin   `json:"origin,omitempty"`
 	ID        string            `json:"id"`
 	Operation string            `json:"operation"`
 	Kind      string            `json:"kind"`
@@ -344,6 +349,8 @@ func (r Rule) Fields() []string {
 func (r *Rule) Identify() { r.ID = ID(r.Operation, r.Kind, r.Field, r.When, r.Assert) }
 
 type Observation struct {
+	EvidenceOnly bool                `json:"evidenceOnly,omitempty"`
+	Origin       *EvidenceOrigin     `json:"origin,omitempty"`
 	ExperimentID string              `json:"experimentId,omitempty"`
 	Sent         bool                `json:"sent"`
 	ID           string              `json:"id"`
@@ -378,36 +385,39 @@ type Resource struct {
 }
 
 type Coverage struct {
-	PlanSignature       string   `json:"planSignature,omitempty"`
-	Operation           string   `json:"operation"`
-	Mode                string   `json:"mode"`
-	InteractionOrder    int      `json:"interactionOrder"`
-	Domains             []Domain `json:"domains,omitempty"`
-	InteractionDomains  []Domain `json:"interactionDomains,omitempty"`
-	TotalCombinations   string   `json:"totalCombinations"`
-	Tested              int      `json:"tested"`
-	ModelConverged      bool     `json:"modelConverged"`
-	InputComplete       bool     `json:"inputComplete"`
-	InteractionComplete bool     `json:"interactionComplete"`
-	State               string   `json:"state"`
-	Reasons             []string `json:"reasons,omitempty"`
+	Origin              *EvidenceOrigin `json:"origin,omitempty"`
+	PlanSignature       string          `json:"planSignature,omitempty"`
+	Operation           string          `json:"operation"`
+	Mode                string          `json:"mode"`
+	InteractionOrder    int             `json:"interactionOrder"`
+	Domains             []Domain        `json:"domains,omitempty"`
+	InteractionDomains  []Domain        `json:"interactionDomains,omitempty"`
+	TotalCombinations   string          `json:"totalCombinations"`
+	Tested              int             `json:"tested"`
+	ModelConverged      bool            `json:"modelConverged"`
+	InputComplete       bool            `json:"inputComplete"`
+	InteractionComplete bool            `json:"interactionComplete"`
+	State               string          `json:"state"`
+	Reasons             []string        `json:"reasons,omitempty"`
 }
 
 type Report struct {
-	HTMLReport string         `json:"htmlReport,omitempty"`
-	Version    int            `json:"version"`
-	RunID      string         `json:"runId"`
-	BaseURL    string         `json:"baseUrl"`
-	SpecHash   string         `json:"specHash"`
-	Started    time.Time      `json:"started"`
-	Finished   time.Time      `json:"finished"`
-	State      string         `json:"state"`
-	Rules      []Rule         `json:"rules"`
-	Coverage   []Coverage     `json:"coverage"`
-	Resources  []Resource     `json:"resources"`
-	Requests   map[string]int `json:"requests"`
-	Changes    []Change       `json:"changes"`
-	Warnings   []string       `json:"warnings,omitempty"`
+	SpecIdentity *SpecIdentity  `json:"specIdentity,omitempty"`
+	Baseline     *Lineage       `json:"baseline,omitempty"`
+	HTMLReport   string         `json:"htmlReport,omitempty"`
+	Version      int            `json:"version"`
+	RunID        string         `json:"runId"`
+	BaseURL      string         `json:"baseUrl"`
+	SpecHash     string         `json:"specHash"`
+	Started      time.Time      `json:"started"`
+	Finished     time.Time      `json:"finished"`
+	State        string         `json:"state"`
+	Rules        []Rule         `json:"rules"`
+	Coverage     []Coverage     `json:"coverage"`
+	Resources    []Resource     `json:"resources"`
+	Requests     map[string]int `json:"requests"`
+	Changes      []Change       `json:"changes"`
+	Warnings     []string       `json:"warnings,omitempty"`
 }
 
 type Change struct {

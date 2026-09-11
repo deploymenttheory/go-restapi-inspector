@@ -3,6 +3,7 @@
 package spec
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -37,7 +38,7 @@ func Load(ctx context.Context, source string) (*Document, error) {
 		return nil, e
 	}
 	var raw map[string]any
-	if e = yaml.Unmarshal(b, &raw); e != nil {
+	if e = decodeDocument(b, &raw); e != nil {
 		return nil, fmt.Errorf("parse OpenAPI: %w", e)
 	}
 	version, _ := raw["openapi"].(string)
@@ -139,7 +140,7 @@ func bundle(ctx context.Context, root map[string]any, base string) error {
 						return fmt.Errorf("resolve %s: %w", ref, e)
 					}
 					var doc any
-					if e = yaml.Unmarshal(data, &doc); e != nil {
+					if e = decodeDocument(data, &doc); e != nil {
 						return e
 					}
 					doc = model.Clone(doc)
@@ -154,7 +155,15 @@ func bundle(ctx context.Context, root map[string]any, base string) error {
 				x["$ref"] = "#" + target + frag
 			}
 			for _, k := range Keys(x) {
-				if k == "$ref" {
+				if referenceMap(k) && Map(x[k]) != nil {
+					for _, name := range Keys(Map(x[k])) {
+						if e := walk(Map(x[k])[name], current, prefix); e != nil {
+							return e
+						}
+					}
+					continue
+				}
+				if k == "$ref" || literalValue(k) || k == "examples" && !isExampleMap(x[k]) {
 					continue
 				}
 				if e := walk(x[k], current, prefix); e != nil {
@@ -177,6 +186,17 @@ func bundle(ctx context.Context, root map[string]any, base string) error {
 		root["x-inspector-documents"] = external
 	}
 	return nil
+}
+
+func isExampleMap(v any) bool { _, ok := v.(map[string]any); return ok }
+
+func decodeDocument(b []byte, out any) error {
+	if json.Valid(b) {
+		decoder := json.NewDecoder(bytes.NewReader(b))
+		decoder.UseNumber()
+		return decoder.Decode(out)
+	}
+	return yaml.Unmarshal(b, out)
 }
 
 func FromMap(raw map[string]any) (*Document, error) {
@@ -350,6 +370,22 @@ func (d *Document) Resolve(v map[string]any) (map[string]any, error) {
 			}
 			out := map[string]any{}
 			for k, v := range x {
+				if referenceMap(k) && Map(v) != nil {
+					entries := map[string]any{}
+					for name, child := range Map(v) {
+						resolved, err := walk(child, stack, depth+1)
+						if err != nil {
+							return nil, err
+						}
+						entries[name] = resolved
+					}
+					out[k] = entries
+					continue
+				}
+				if literalValue(k) || k == "examples" && !isExampleMap(v) {
+					out[k] = model.Clone(v)
+					continue
+				}
 				r, e := walk(v, stack, depth+1)
 				if e != nil {
 					return nil, e

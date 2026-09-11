@@ -89,7 +89,7 @@ func Build(d *spec.Document, c config.Config) (*Plan, error) {
 		}
 	}
 	selected := map[string]bool{}
-	if len(c.Operations) == 0 {
+	if len(c.Operations) == 0 && !c.SelectionExplicit {
 		for _, o := range p.Operations {
 			selected[o.Key] = true
 		}
