@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/crillab/gophersat v1.4.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/pb33f/libopenapi v0.41.6
+	github.com/pb33f/libopenapi v0.41.8
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
@@ -29,6 +29,6 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
 )
